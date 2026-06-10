@@ -8,126 +8,118 @@
     .container { max-width:600px; margin:auto; background:white; padding:24px; border-radius:18px; box-shadow:0 10px 30px #0002; }
     input, button { width:100%; padding:12px; margin:10px 0; border-radius:10px; border:1px solid #cbd5e1; }
     button { background:#0284c7; color:white; font-weight:bold; cursor:pointer; }
+    button:disabled { background:#94a3b8; cursor:not-allowed; }
     img { max-width:100%; border-radius:14px; margin-top:18px; }
     .url { word-break:break-all; background:#e0f2fe; padding:12px; border-radius:10px; }
-    .preview-container { text-align: center; margin: 10px 0; }
-    .preview-container img { max-height: 200px; border: 2px dashed #cbd5e1; }
-    .galeria { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; margin-top: 20px; }
-    .galeria img { width: 100%; height: 100px; object-fit: cover; margin: 0; border-radius: 8px; }
+    .preview { margin:20px 0; text-align:center; }
+    .gallery { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; margin-top:30px; }
+    .gallery img { width:100%; height:150px; object-fit:cover; border-radius:10px; }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>Subir imagen a Cloudinary</h1>
     <p>Selecciona una imagen y súbela usando el backend publicado en Vercel.</p>
- 
+
     <form id="formUpload">
       <input type="file" id="imagen" name="imagen" accept="image/*" required />
-      
-      <div id="previewContainer" class="preview-container" style="display: none;">
-        <p>Vista previa local:</p>
-        <img id="imgPreview" src="" alt="Vista previa" />
-      </div>
-
-      <button type="submit">Subir imagen</button>
+      <button type="submit" id="btnSubir">Subir imagen</button>
     </form>
- 
-    <p id="estado"></p>
-    <div id="resultado"></div>
 
-    <h2>Galería de Imágenes</h2>
-    <div id="galeria" class="galeria"></div>
+    <p id="estado"></p>
+    <div id="preview" class="preview"></div>
+    <div id="resultado"></div>
+    <h2>Galería</h2>
+    <div id="galeria" class="gallery"></div>
   </div>
- 
+
   <script>
     const form = document.getElementById("formUpload");
-    const inputImagen = document.getElementById("imagen");
-    const previewContainer = document.getElementById("previewContainer");
-    const imgPreview = document.getElementById("imgPreview");
     const estado = document.getElementById("estado");
     const resultado = document.getElementById("resultado");
-    const galeriaContainer = document.getElementById("galeria");
- 
-    // En local puede ser: http://localhost:3000
-    // En Vercel puede quedar vacío si frontend y backend están en el mismo proyecto.
-    const API_URL = "https://cloudinary-sigma-sand.vercel.app";
+    const previewDiv = document.getElementById("preview");
+    const galeria = document.getElementById("galeria");
+    const btnSubir = document.getElementById("btnSubir");
+
+    const API_URL = "";
+
+    let previewUrl = null;
 
     function cargarGaleria() {
-      const imagenes = JSON.parse(localStorage.getItem("misImagenes")) || [];
-      galeriaContainer.innerHTML = "";
-      imagenes.forEach(url => {
+      const urls = JSON.parse(localStorage.getItem("imagenes") || "[]");
+      galeria.innerHTML = "";
+      urls.forEach(url => {
         const img = document.createElement("img");
         img.src = url;
-        galeriaContainer.appendChild(img);
+        galeria.appendChild(img);
       });
     }
 
-    inputImagen.addEventListener("change", () => {
-      const archivo = inputImagen.files[0];
-      if (!archivo) {
-        previewContainer.style.display = "none";
-        return;
-      }
+    function mostrarVistaPrevia(archivo) {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      
+      previewUrl = URL.createObjectURL(archivo);
+      previewDiv.innerHTML = `<img src="${previewUrl}" alt="Vista previa" />`;
+    }
 
-      if (archivo.size > 5 * 1024 * 1024) {
-        alert("El archivo supera el límite de 5 MB");
-        inputImagen.value = "";
-        previewContainer.style.display = "none";
-        return;
-      }
-
-      const urlPreview = URL.createObjectURL(archivo);
-      imgPreview.src = urlPreview;
-      previewContainer.style.display = "block";
-    });
- 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       estado.textContent = "Subiendo imagen...";
       resultado.innerHTML = "";
- 
-      const archivo = inputImagen.files[0];
 
-      if (archivo.size > 5 * 1024 * 1024) {
-        estado.textContent = "Error: El archivo supera los 5 MB";
-        return;
-      }
+      const archivo = document.getElementById("imagen").files[0];
+      if (!archivo) return;
 
       const formData = new FormData();
       formData.append("imagen", archivo);
- 
+
       try {
         const response = await fetch(`${API_URL}/api/upload`, {
           method: "POST",
           body: formData
         });
- 
+
         const data = await response.json();
- 
+
         if (!response.ok) {
           throw new Error(data.error || "Error desconocido");
         }
 
-        const urlTransformada = data.url.replace("/upload/", "/upload/w_400,c_fill/");
- 
         estado.textContent = data.message;
+
+        const urlOptimizada = data.url.replace("/upload/", "/upload/w_800,q_auto,f_auto/");
+
         resultado.innerHTML = `
-          <h3>Imagen subida (Optimizada):</h3>
-          <img src="${urlTransformada}" alt="Imagen subida" />
-          <p class="url">${urlTransformada}</p>
+          <h3>Imagen subida:</h3>
+          <img src="${urlOptimizada}" alt="Imagen subida" />
+          <p class="url">${urlOptimizada}</p>
         `;
 
-        const imagenes = JSON.parse(localStorage.getItem("misImagenes")) || [];
-        imagenes.push(urlTransformada);
-        localStorage.setItem("misImagenes", JSON.stringify(imagenes));
-        
+        const urls = JSON.parse(localStorage.getItem("imagenes") || "[]");
+        urls.push(urlOptimizada);
+        localStorage.setItem("imagenes", JSON.stringify(urls));
+
         cargarGaleria();
-        form.reset();
-        previewContainer.style.display = "none";
 
       } catch (error) {
         estado.textContent = "Error: " + error.message;
       }
+    });
+
+    document.getElementById("imagen").addEventListener("change", (e) => {
+      const archivo = e.target.files[0];
+      if (!archivo) return;
+
+      if (archivo.size > 5 * 1024 * 1024) {
+        estado.textContent = "Error: La imagen no puede superar 5 MB";
+        btnSubir.disabled = true;
+        previewDiv.innerHTML = "";
+        return;
+      }
+
+      btnSubir.disabled = false;
+      estado.textContent = "";
+      mostrarVistaPrevia(archivo);
     });
 
     cargarGaleria();
